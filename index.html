@@ -44,19 +44,12 @@
     const message   = document.getElementById('message');
     const closeNote = document.getElementById('close-note');
 
-    function setDone(msg) {
-      spinner.classList.add('done');
-      heading.textContent = 'Authorization complete';
-      heading.classList.add('status-ok');
-      message.textContent = msg;
-      closeNote.textContent = 'You can close this tab and return to the commission tracker.';
-    }
     function setError(msg) {
       spinner.classList.add('error');
       heading.textContent = 'Authorization failed';
       heading.classList.add('status-err');
       message.textContent = msg;
-      closeNote.textContent = 'Close this tab and try connecting again from the commission tracker.';
+      closeNote.innerHTML = '<a href="app.html" style="color:#3b82f6;">Return to the commission tracker</a> and try again.';
     }
 
     (function() {
@@ -68,36 +61,15 @@
       const errorDesc = params.get('error_description');
 
       if (error) { setError(errorDesc || error); return; }
-      if (!code)  { setError('No authorization code received. The request may have been cancelled or timed out.'); return; }
+      if (!code) { setError('No authorization code received. The request may have been cancelled.'); return; }
 
-      // Store in sessionStorage on THIS origin so the main app can read it
-      // via a fetch to /token.json — but since GitHub Pages is static,
-      // we use a different approach: store in sessionStorage and open
-      // a postMessage channel back to the opener window.
-      try {
-        // Attempt to postMessage back to the opener (main app tab)
-        if (window.opener && !window.opener.closed) {
-          window.opener.postMessage({
-            type:    'qbo_auth_complete',
-            code:    code,
-            state:   state || '',
-            realmId: realmId || ''
-          }, '*');
-          setDone('QuickBooks authorization received. Returning to the commission tracker now.');
-          setTimeout(() => { window.close(); }, 2000);
-          return;
-        }
-      } catch(e) {}
+      // Same origin as app.html — localStorage is shared, this just works
+      localStorage.setItem('qbo_auth_code',  code);
+      localStorage.setItem('qbo_auth_state', state || '');
+      localStorage.setItem('qbo_realm_id',   realmId || '');
 
-      // Fallback: store params in the URL hash of a redirect back to the main app.
-      // The main app URL is passed as the 'origin' param in state (encoded).
-      setDone('Authorization complete. Please return to the commission tracker tab and click "Resume session".');
-      // Store in sessionStorage as last resort so Resume Session can fetch it
-      try {
-        sessionStorage.setItem('qbo_pending_code',  code);
-        sessionStorage.setItem('qbo_pending_state', state || '');
-        sessionStorage.setItem('qbo_pending_realm', realmId || '');
-      } catch(e) {}
+      // Redirect straight to the app — it will pick up the code on load
+      window.location.href = 'app.html';
     })();
   </script>
 </body>

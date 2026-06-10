@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SBS Commission Tracker</title>
+<style>
+  :root {
+    --bg:        #0d1117;
+    --surface:   #161b27;
+    --surface2:  #1e2538;
+    --border:    #2a3349;
+    --border2:   #374160;
+    --text:      #e2e8f0;
+    --muted:     #64748b;
+    --accent:    #3b82f6;
+    --accent2:   #1d4ed8;
+    --green:     #22c55e;
+    --yellow:    #eab308;
+    --red:       #ef4444;
+    --christa:   #a78bfa;
+    --richard:   #38bdf8;
+    --radius:    8px;
+    --mono:      'JetBrains Mono', 'Fira Mono', 'Consolas', monospace;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { font-size: 14px; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-left { display:flex; align-items:center; gap:16px; }
+  .wordmark {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .wordmark span { color: var(--accent); }
+  .conn-status {
+    display: flex; align-items:center; gap:6px;
+    font-size: 12px; color: var(--muted);
+  }
+  .conn-dot {
+    width:7px; height:7px; border-radius:50%;
+    background: var(--border2);
+    transition: background 0.3s;
+  }
+  .conn-dot.connected { background: var(--green); }
+  .conn-dot.error     { background: var(--red); }
+  .header-right { display:flex; gap:8px; align-items:center; }
+  .btn {
+    padding: 6px 14px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--border); border-color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color:#fff; }
+  .btn.primary:hover { background: var(--accent2); }
+  .btn.sm { padding: 4px 10px; font-size: 11px; }
+  .btn:disabled { opacity:0.4; cursor:default; }
+
+  /* ── TABS ── */
+  .tabs {
+    display:flex; gap:0;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    padding: 0 24px;
+  }
+  .tab {
+    padding: 12px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active-christa { color: var(--christa); border-bottom-color: var(--christa); }
+  .tab.active-richard { color: var(--richard); border-bottom-color: var(--richard); }
+  .tab.active-orders  { color: var(--accent);  border-bottom-color: var(--accent);  }
+  .tab.active-settings { color: var(--muted);  border-bottom-color: var(--border2); }
+
+  /* ── MAIN CONTENT ── */
+  .page { display:none; padding: 24px; }
+  .page.active { display:block; }
+
+  /* ── STATS ROW ── */
+  .stats-row { display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap; }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    min-width: 150px;
+    flex:1;
+  }
+  .stat-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:6px; }
+  .stat-value { font-size:22px; font-weight:700; font-family:var(--mono); }
+  .stat-value.christa { color: var(--christa); }
+  .stat-value.richard { color: var(--richard); }
+  .stat-value.green   { color: var(--green); }
+  .stat-value.yellow  { color: var(--yellow); }
+  .stat-value.muted   { color: var(--muted); }
+
+  /* ── TABLE ── */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .table-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .table-title { font-size:13px; font-weight:600; color:var(--text); }
+  .table-actions { display:flex; gap:6px; }
+  table { width:100%; border-collapse:collapse; }
+  th {
+    text-align:left;
+    font-size:11px;
+    font-weight:600;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--muted);
+    padding:10px 14px;
+    border-bottom:1px solid var(--border);
+    background: var(--surface2);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  th:hover { color:var(--text); }
+  th .sort-arrow { margin-left:4px; opacity:0.4; }
+  th.sorted .sort-arrow { opacity:1; color:var(--accent); }
+  td {
+    padding:9px 14px;
+    border-bottom:1px solid var(--border);
+    font-size:13px;
+    vertical-align:middle;
+  }
+  tr:last-child td { border-bottom:none; }
+  tr:hover td { background: var(--surface2); }
+  .mono { font-family:var(--mono); font-size:12px; }
+  .pill {
+    display:inline-block;
+    padding:2px 8px;
+    border-radius:20px;
+    font-size:11px;
+    font-weight:600;
+  }
+  .pill.paid    { background:#14532d33; color:var(--green); border:1px solid #16a34a44; }
+  .pill.partial { background:#71350033; color:var(--yellow);border:1px solid #ca8a0444; }
+  .pill.unpaid  { background:#1e1e1e;   color:var(--muted); border:1px solid var(--border2); }
+  .pill.install  { background:#1e2d4a; color:var(--richard); border:1px solid #1d4ed844; }
+  .pill.supplyonly { background:#2a1f3d; color:var(--christa); border:1px solid #7c3aed44; }
+
+  /* milestone cells */
+  .milestone-group { display:flex; gap:4px; }
+  .ms {
+    display:inline-flex; flex-direction:column; align-items:center;
+    padding:3px 6px;
+    border-radius:5px;
+    background: var(--surface2);
+    border:1px solid var(--border);
+    font-size:10px;
+    min-width:44px;
+  }
+  .ms.paid-ms    { background:#14532d22; border-color:#16a34a44; }
+  .ms.partial-ms { background:#71350022; border-color:#ca8a0444; }
+  .ms-pct { color:var(--muted); font-size:9px; }
+  .ms-amt { font-family:var(--mono); font-size:11px; color:var(--text); }
+  .ms-date { font-size:9px; color:var(--muted); }
+
+  /* ── EDITABLE TABLE INPUT ── */
+  .edit-input {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius:4px;
+    color: var(--text);
+    padding: 3px 7px;
+    font-size:12px;
+    font-family:var(--mono);
+    width:100%;
+  }
+  .edit-input:focus { outline:none; border-color:var(--accent); }
+
+  /* ── SETTINGS / ADMIN ── */
+  .section-label {
+    font-size:11px; font-weight:700; letter-spacing:0.15em;
+    text-transform:uppercase; color:var(--muted);
+    margin-bottom:12px; margin-top:24px;
+  }
+  .section-label:first-child { margin-top:0; }
+  .config-row {
+    display:flex; align-items:center; gap:12px;
+    padding:10px 0; border-bottom:1px solid var(--border);
+  }
+  .config-row:last-child { border-bottom:none; }
+  .config-label { flex:1; font-size:13px; color:var(--text); }
+  .config-input {
+    background:var(--surface2); border:1px solid var(--border2);
+    border-radius:4px; color:var(--text); padding:5px 10px;
+    font-size:13px; font-family:var(--mono); width:120px;
+  }
+  .config-input:focus { outline:none; border-color:var(--accent); }
+
+  /* ── EMPTY / LOADING ── */
+  .empty {
+    text-align:center; padding:48px 24px;
+    color:var(--muted); font-size:13px;
+  }
+  .empty strong { display:block; color:var(--text); font-size:15px; margin-bottom:8px; }
+  .loading-bar {
+    height:2px; background:var(--accent);
+    animation: loadbar 1.2s ease-in-out infinite;
+    margin-bottom:24px; border-radius:1px;
+  }
+  @keyframes loadbar {
+    0%   { width:0%; margin-left:0; }
+    50%  { width:60%; margin-left:20%; }
+    100% { width:0%; margin-left:100%; }
+  }
+
+  /* ── AUTH MODAL ── */
+  .modal-overlay {
+    display:none; position:fixed; inset:0;
+    background:#000a; backdrop-filter:blur(4px);
+    z-index:200; align-items:center; justify-content:center;
+  }
+  .modal-overlay.open { display:flex; }
+  .modal {
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:40px 48px;
+    max-width:440px; width:90%;
+    text-align:center;
+  }
+  .modal h2 { font-size:18px; margin-bottom:10px; }
+  .modal p  { font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:24px; }
+  .modal-actions { display:flex; gap:10px; justify-content:center; }
+
+  /* ── PAYMENT MODAL ── */
+  .pay-modal {
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:28px 32px;
+    max-width:520px; width:95%;
+  }
+  .pay-modal h2 { font-size:16px; margin-bottom:4px; }
+  .pay-modal .sub { font-size:12px; color:var(--muted); margin-bottom:20px; }
+  .pay-field { margin-bottom:14px; }
+  .pay-field label { display:block; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:4px; }
+  .pay-field input {
+    width:100%; background:var(--surface2); border:1px solid var(--border2);
+    border-radius:4px; color:var(--text); padding:7px 10px; font-size:13px;
+  }
+  .pay-field input:focus { outline:none; border-color:var(--accent); }
+  .ms-row { display:flex; gap:10px; }
+  .ms-row .pay-field { flex:1; }
+  .pay-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:20px; }
+
+  /* search */
+  .search-input {
+    background:var(--surface2); border:1px solid var(--border2);
+    border-radius:var(--radius); color:var(--text);
+    padding:6px 12px; font-size:12px; width:220px;
+  }
+  .search-input:focus { outline:none; border-color:var(--accent); }
+
+  /* export/import strip */
+  .toolbar {
+    display:flex; align-items:center; gap:8px;
+    margin-bottom:16px; flex-wrap:wrap;
+  }
+  .toolbar-spacer { flex:1; }
+
+  /* print */
+  @media print {
+    header, .tabs, .toolbar, .btn, .table-actions { display:none !important; }
+    .page { display:block !important; padding:0; }
+    body { background:#fff; color:#000; }
+    .stat-card, .table-wrap { border:1px solid #ccc; }
+    .stat-value { color:#000 !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- AUTH MODAL -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal">
+    <div style="font-size:11px;font-weight:800;letter-spacing:0.22em;text-transform:uppercase;color:var(--muted);margin-bottom:20px;">SBS <span style="color:var(--accent)">Commission</span> Tracker</div>
+    <h2>Connect to QuickBooks</h2>
+    <p>Authorize this app to read your QBO invoices. You'll be redirected to Intuit and back — this only takes a moment.</p>
+    <div class="modal-actions">
+      <button class="btn primary" onclick="startOAuth()">Connect to QuickBooks</button>
+    </div>
+    <p style="margin-top:16px;font-size:11px;color:var(--muted);">Already authorized? <span style="color:var(--accent);cursor:pointer;" onclick="checkStoredToken()">Resume session</span></p>
+  </div>
+</div>
+
+<!-- PAYMENT EDIT MODAL -->
+<div class="modal-overlay" id="payModal">
+  <div class="pay-modal">
+    <h2 id="payModalTitle">Edit Payments</h2>
+    <div class="sub" id="payModalSub"></div>
+    <div id="payModalFields"></div>
+    <div class="pay-actions">
+      <button class="btn" onclick="closePayModal()">Cancel</button>
+      <button class="btn primary" onclick="savePayModal()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="header-left">
+    <div class="wordmark">SBS <span>Commission</span></div>
+    <div class="conn-status">
+      <div class="conn-dot" id="connDot"></div>
+      <span id="connLabel">Not connected</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <button class="btn" id="refreshBtn" onclick="fetchInvoices()" disabled>↻ Refresh Data</button>
+    <button class="btn" onclick="exportAllData()">Export Backup</button>
+    <button class="btn" onclick="document.getElementById('importFile').click()">Import Backup</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importAllData(event)">
+    <button class="btn primary" onclick="window.print()">Print / PDF</button>
+  </div>
+</header>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab" id="tab-christa" onclick="showTab('christa')">Christa</div>
+  <div class="tab" id="tab-richard" onclick="showTab('richard')">Richard</div>
+  <div class="tab" id="tab-orders"  onclick="showTab('orders')">Order Detail</div>
+  <div class="tab" id="tab-settings" onclick="showTab('settings')">Settings &amp; Data</div>
+</div>
+
+<!-- CHRISTA PAGE -->
+<div class="page" id="page-christa">
+  <div class="stats-row" id="christa-stats"></div>
+  <div class="toolbar">
+    <input class="search-input" placeholder="Search orders…" oninput="renderChrista(this.value)" id="christaSearch">
+    <div class="toolbar-spacer"></div>
+  </div>
+  <div class="table-wrap">
+    <div class="table-header">
+      <span class="table-title">Sales Commissions — Christa</span>
+    </div>
+    <div id="christa-table"></div>
+  </div>
+</div>
+
+<!-- RICHARD PAGE -->
+<div class="page" id="page-richard">
+  <div class="stats-row" id="richard-stats"></div>
+  <div class="toolbar">
+    <input class="search-input" placeholder="Search orders…" oninput="renderRichard(this.value)" id="richardSearch">
+    <div class="toolbar-spacer"></div>
+  </div>
+  <div class="table-wrap">
+    <div class="table-header">
+      <span class="table-title">Installer Commissions — Richard</span>
+    </div>
+    <div id="richard-table"></div>
+  </div>
+</div>
+
+<!-- ORDER DETAIL PAGE -->
+<div class="page" id="page-orders">
+  <div class="toolbar">
+    <input class="search-input" placeholder="Search orders…" oninput="renderOrders(this.value)" id="ordersSearch">
+    <div class="toolbar-spacer"></div>
+  </div>
+  <div class="table-wrap">
+    <div class="table-header">
+      <span class="table-title">Order Detail</span>
+    </div>
+    <div id="orders-table"></div>
+  </div>
+</div>
+
+<!-- SETTINGS PAGE -->
+<div class="page" id="page-settings">
+
+  <div class="section-label">Commission Rates</div>
+  <div class="table-wrap" style="margin-bottom:24px;">
+    <div style="padding:4px 0;">
+      <div class="config-row" style="padding:12px 16px;">
+        <span class="config-label">Sales commission rate (Christa)</span>
+        <input class="config-input" id="cfg-commRate" type="number" step="0.001" onchange="saveConfig()">
+        <span style="font-size:12px;color:var(--muted);">e.g. 0.10</span>
+      </div>
+      <div class="config-row" style="padding:12px 16px;">
+        <span class="config-label">Installer commission rate (Richard)</span>
+        <input class="config-input" id="cfg-instRate" type="number" step="0.001" onchange="saveConfig()">
+        <span style="font-size:12px;color:var(--muted);">e.g. 0.11</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label">Product / Install Cost Table</div>
+  <div class="toolbar">
+    <button class="btn sm" onclick="addProductRow()">+ Add Product</button>
+    <div class="toolbar-spacer"></div>
+    <input class="search-input" placeholder="Filter SKUs…" oninput="renderProductTable(this.value)" id="productSearch" style="width:180px;">
+  </div>
+  <div class="table-wrap" style="margin-bottom:24px;">
+    <div id="product-table"></div>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════
+const CLIENT_ID   = 'ABtwvpOkhMl094Q3vyept26sPKCbNzjxGbMk8V9C5JhSr5DaiF';
+const REALM_ID    = '9341456872578971';
+const REDIRECT_URI= 'https://countryboy71.github.io/sbs-oauth-redirect/';
+const QBO_BASE    = 'https://quickbooks.api.intuit.com/v3/company/' + REALM_ID;
+const AUTH_URL    = 'https://appcenter.intuit.com/connect/oauth2';
+const TOKEN_URL   = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
+const SCOPES      = 'com.intuit.quickbooks.accounting';
+
+// ═══════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════
+let invoices = [];
+let itemsMap = {};   // QBO item Id → {sku, fqn, type}
+let config   = { commRate: 0.10, instRate: 0.11 };
+let products = {};   // sku → installCost
+let payments = {};   // `${soId}_sales` or `${soId}_install` → {date1,date2,date3,amt1,amt2,amt3}
+let sortState = {};
+let payModalCtx = null;
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+window.onload = function() {
+  loadLocalData();
+  showTab('christa');
+
+  // Check if we just returned from OAuth callback with a pending code
+  checkForPendingAuth();
+  checkStoredToken();
+};
+
+function loadLocalData() {
+  try {
+    const c = localStorage.getItem('sbs_config');
+    if (c) config = {...config, ...JSON.parse(c)};
+    const p = localStorage.getItem('sbs_products');
+    if (p) products = JSON.parse(p);
+    const pm = localStorage.getItem('sbs_payments');
+    if (pm) payments = JSON.parse(pm);
+    const inv = localStorage.getItem('sbs_invoices');
+    if (inv) { invoices = JSON.parse(inv); buildItemsMap(); }
+    const im = localStorage.getItem('sbs_items');
+    if (im) itemsMap = JSON.parse(im);
+  } catch(e) { console.warn('loadLocalData error', e); }
+  applyConfig();
+  renderAll();
+}
+
+function saveConfig() {
+  config.commRate = parseFloat(document.getElementById('cfg-commRate').value) || 0.10;
+  config.instRate = parseFloat(document.getElementById('cfg-instRate').value) || 0.11;
+  localStorage.setItem('sbs_config', JSON.stringify(config));
+  renderAll();
+}
+
+function applyConfig() {
+  document.getElementById('cfg-commRate').value = config.commRate;
+  document.getElementById('cfg-instRate').value = config.instRate;
+}
+
+function saveProducts() {
+  localStorage.setItem('sbs_products', JSON.stringify(products));
+}
+function savePayments() {
+  localStorage.setItem('sbs_payments', JSON.stringify(payments));
+}
+
+// ═══════════════════════════════════════════════════
+// OAUTH / QBO
+// ═══════════════════════════════════════════════════
+function generatePKCE() {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  const verifier = btoa(String.fromCharCode(...array))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
+    .then(hash => {
+      const challenge = btoa(String.fromCharCode(...new Uint8Array(hash)))
+        .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+      return { verifier, challenge };
+    });
+}
+
+async function startOAuth() {
+  const { verifier, challenge } = await generatePKCE();
+  const state = Math.random().toString(36).slice(2);
+  localStorage.setItem('qbo_oauth_state',   state);
+  localStorage.setItem('qbo_code_verifier', verifier);
+
+  const params = new URLSearchParams({
+    client_id:             CLIENT_ID,
+    response_type:         'code',
+    scope:                 SCOPES,
+    redirect_uri:          REDIRECT_URI,
+    state:                 state,
+    code_challenge:        challenge,
+    code_challenge_method: 'S256'
+  });
+  // Navigate the current tab — same origin on return so localStorage works
+  window.location.href = AUTH_URL + '?' + params.toString();
+}
+
+async function completeOAuth() {
+  const code          = localStorage.getItem("qbo_auth_code");
+  const returnedState = localStorage.getItem("qbo_auth_state");
+  const savedState    = localStorage.getItem("qbo_oauth_state");
+  const verifier      = localStorage.getItem("qbo_code_verifier");
+  if (!code || !verifier) return;
+
+  // State validation happens here (same origin as startOAuth stored it)
+  if (savedState && returnedState && savedState !== returnedState) {
+    setConnStatus("error", "State mismatch — please try again");
+    ["qbo_auth_code","qbo_auth_state","qbo_oauth_state","qbo_code_verifier","qbo_auth_signal"].forEach(k => localStorage.removeItem(k));
+    openAuthModal();
+    return;
+  }
+
+  ["qbo_auth_code","qbo_auth_state","qbo_oauth_state","qbo_code_verifier","qbo_auth_signal"].forEach(k => localStorage.removeItem(k));
+
+
+  setConnStatus('loading', 'Exchanging token…');
+
+  try {
+    const resp = await fetch(TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json'
+      },
+      body: new URLSearchParams({
+        grant_type:    'authorization_code',
+        code:          code,
+        redirect_uri:  REDIRECT_URI,
+        client_id:     CLIENT_ID,
+        code_verifier: verifier
+      })
+    });
+    const tok = await resp.json();
+    if (!tok.access_token) throw new Error(tok.error_description || 'Token exchange failed');
+
+    tok.expires_at = Date.now() + (tok.expires_in * 1000);
+    localStorage.setItem('sbs_qbo_token', JSON.stringify(tok));
+    closeAuthModal();
+    setConnStatus('connected', 'Connected to QBO');
+    document.getElementById('refreshBtn').disabled = false;
+    fetchInvoices();
+  } catch(e) {
+    setConnStatus('error', 'Auth failed — try again');
+    console.error(e);
+  }
+}
+
+// Called on load — picks up auth code that index.html stored in localStorage
+function checkForPendingAuth() {
+  const code     = localStorage.getItem('qbo_auth_code');
+  const verifier = localStorage.getItem('qbo_code_verifier');
+  const retState = localStorage.getItem('qbo_auth_state');
+  const savState = localStorage.getItem('qbo_oauth_state');
+  if (!code || !verifier) return;
+
+  // Clean up
+  ['qbo_auth_code','qbo_auth_state','qbo_oauth_state','qbo_code_verifier'].forEach(k => localStorage.removeItem(k));
+
+  // State check
+  if (savState && retState && savState !== retState) {
+    setConnStatus('error', 'State mismatch — please try again');
+    return;
+  }
+  exchangeCodeForToken(code, verifier);
+}
+
+function checkStoredToken() {
+  const raw = localStorage.getItem('sbs_qbo_token');
+  if (!raw) { openAuthModal(); return; }
+  const tok = JSON.parse(raw);
+  if (Date.now() < tok.expires_at - 60000) {
+    closeAuthModal();
+    setConnStatus('connected', 'Connected to QBO');
+    document.getElementById('refreshBtn').disabled = false;
+    if (invoices.length === 0) fetchInvoices();
+  } else if (tok.refresh_token) {
+    refreshToken(tok.refresh_token);
+  } else {
+    openAuthModal();
+  }
+}
+
+async function refreshToken(refreshTok) {
+  setConnStatus('loading', 'Refreshing token…');
+  try {
+    const resp = await fetch(TOKEN_URL, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/x-www-form-urlencoded', 'Accept':'application/json' },
+      body: new URLSearchParams({
+        grant_type:    'refresh_token',
+        refresh_token: refreshTok,
+        client_id:     CLIENT_ID
+      })
+    });
+    const tok = await resp.json();
+    if (!tok.access_token) throw new Error('Refresh failed');
+    tok.expires_at = Date.now() + (tok.expires_in * 1000);
+    localStorage.setItem('sbs_qbo_token', JSON.stringify(tok));
+    closeAuthModal();
+    setConnStatus('connected', 'Connected to QBO');
+    document.getElementById('refreshBtn').disabled = false;
+    if (invoices.length === 0) fetchInvoices();
+  } catch(e) {
+    setConnStatus('error', 'Session expired');
+    openAuthModal();
+  }
+}
+
+function getToken() {
+  const raw = localStorage.getItem('sbs_qbo_token');
+  if (!raw) return null;
+  return JSON.parse(raw);
+}
+
+async function qboFetch(path) {
+  const tok = getToken();
+  if (!tok) throw new Error('Not authenticated');
+  const resp = await fetch(QBO_BASE + path, {
+    headers: {
+      'Authorization': 'Bearer ' + tok.access_token,
+      'Accept': 'application/json'
+    }
+  });
+  if (resp.status === 401) { openAuthModal(); throw new Error('Token expired'); }
+  return resp.json();
+}
+
+async function fetchInvoices() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.textContent = '↻ Loading…';
+  setConnStatus('loading', 'Fetching invoices…');
+
+  try {
+    // Fetch all invoices (paginate in batches of 100)
+    let allInvoices = [];
+    let startPos = 1;
+    const pageSize = 100;
+    while (true) {
+      const query = encodeURIComponent(
+        `SELECT * FROM Invoice STARTPOSITION ${startPos} MAXRESULTS ${pageSize}`
+      );
+      const data = await qboFetch(`/query?query=${query}&minorversion=65`);
+      const batch = data?.QueryResponse?.Invoice || [];
+      allInvoices = allInvoices.concat(batch);
+      if (batch.length < pageSize) break;
+      startPos += pageSize;
+    }
+
+    // Fetch items
+    let allItems = [];
+    startPos = 1;
+    while (true) {
+      const query = encodeURIComponent(
+        `SELECT * FROM Item STARTPOSITION ${startPos} MAXRESULTS ${pageSize}`
+      );
+      const data = await qboFetch(`/query?query=${query}&minorversion=65`);
+      const batch = data?.QueryResponse?.Item || [];
+      allItems = allItems.concat(batch);
+      if (batch.length < pageSize) break;
+      startPos += pageSize;
+    }
+
+    invoices = allInvoices;
+    buildItemsMapFromRaw(allItems);
+    localStorage.setItem('sbs_invoices', JSON.stringify(invoices));
+    localStorage.setItem('sbs_items',    JSON.stringify(itemsMap));
+
+    setConnStatus('connected', `Connected · ${invoices.length} invoices`);
+    renderAll();
+  } catch(e) {
+    setConnStatus('error', 'Fetch failed');
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '↻ Refresh Data';
+  }
+}
+
+function buildItemsMapFromRaw(rawItems) {
+  itemsMap = {};
+  for (const item of rawItems) {
+    itemsMap[item.Id] = {
+      sku:  item.Name,
+      fqn:  item.FullyQualifiedName || item.Name,
+      type: item.Type
+    };
+  }
+}
+
+function buildItemsMap() {
+  // already stored as itemsMap, just ensure it's loaded
+}
+
+// ═══════════════════════════════════════════════════
+// COMMISSION LOGIC
+// ═══════════════════════════════════════════════════
+function isCommissionable(itemName) {
+  return itemName && itemName.startsWith('Goods:');
+}
+
+// Extract line-level data from a single invoice (no totals — just the raw pieces)
+function extractInvoiceLines(inv) {
+  const soField = (inv.CustomField || []).find(f => f.Name === 'Sales Order');
+  const soId    = soField?.StringValue?.trim() || '';
+  const hasSoField = !!(inv.CustomField || []).find(f => f.Name === 'Sales Order');
+
+  const itField = (inv.CustomField || []).find(f => f.Name === 'Install Type');
+  // Default to 'Install' if field is missing or blank
+  const installType = itField?.StringValue?.trim() || 'Install';
+  const supplyOnly  = installType === 'Supply Only';
+
+  const customer  = inv.CustomerRef?.name || '';
+  const addrField = (inv.CustomField || []).find(f => f.Name === 'Project Address');
+  const address   = addrField?.StringValue || '';
+  const date      = inv.TxnDate || '';
+  const balance   = inv.Balance || 0;
+  const total     = inv.TotalAmt || 0;
+  const invoiceId = inv.Id;
+  const docNum    = inv.DocNumber || '';
+
+  let goodsTotal   = 0;
+  let installTotal = 0;
+  const lines      = [];
+
+  for (const line of (inv.Line || [])) {
+    if (line.DetailType !== 'SalesItemLineDetail') continue;
+    const itemRef = line.SalesItemLineDetail?.ItemRef;
+    if (!itemRef) continue;
+    const itemName = itemRef.name || '';
+    const amt      = line.Amount || 0;
+    // HOLD and DISC are Finance: lines — excluded by the Goods: check below
+    if (isCommissionable(itemName)) {
+      const sku = itemName.split(':').pop();
+      const installCost = products[sku] ? parseFloat(products[sku]) : 0;
+      goodsTotal   += amt;
+      installTotal += installCost;
+      lines.push({ sku, itemName, amt, installCost });
+    }
+  }
+
+  return {
+    soId, hasSoField, invoiceId, docNum, customer, address, date,
+    balance, total, supplyOnly, installType,
+    goodsTotal, installTotal, lines
+  };
+}
+
+// Group all invoices by Sales Order ID, summing goods/install across all invoices for the same SO.
+// Install Type and customer info taken from the earliest invoice for the SO.
+// Invoices with no Sales Order field are collected separately for the warning banner.
+function getCommissionRows(role, filter) {
+  const soMap = {};       // soId → aggregated row
+  const missingSO = [];   // invoices with no SO field
+
+  for (const inv of invoices) {
+    const d = extractInvoiceLines(inv);
+
+    if (!d.soId) {
+      if (d.hasSoField === false || !(inv.CustomField || []).find(f => f.Name === 'Sales Order')) {
+        missingSO.push(d.invoiceId + (d.docNum ? ' (' + d.docNum + ')' : ''));
+      }
+      continue;
+    }
+
+    if (!soMap[d.soId]) {
+      // First invoice for this SO — seed the record
+      soMap[d.soId] = {
+        soId:        d.soId,
+        customer:    d.customer,
+        address:     d.address,
+        date:        d.date,           // earliest invoice date
+        installType: d.installType,
+        supplyOnly:  d.supplyOnly,
+        goodsTotal:  0,
+        installTotal:0,
+        balance:     0,
+        lines:       []
+      };
+    }
+
+    const row = soMap[d.soId];
+    row.goodsTotal   += d.goodsTotal;
+    row.installTotal += d.installTotal;
+    row.balance      += d.balance;
+    row.lines         = row.lines.concat(d.lines);
+    // Keep earliest date
+    if (d.date && d.date < row.date) row.date = d.date;
+    // If any invoice on this SO is Supply Only, the whole SO is Supply Only
+    if (d.supplyOnly) { row.supplyOnly = true; row.installType = 'Supply Only'; }
+  }
+
+  // Render missing-SO warning
+  renderMissingSoWarning(missingSO);
+
+  // Compute commission totals and apply filter
+  const rows = [];
+  for (const soId of Object.keys(soMap).sort()) {
+    const r = soMap[soId];
+    const commBase   = r.goodsTotal - (r.supplyOnly ? 0 : r.installTotal);
+    const commEarned = commBase * config.commRate;
+    const instEarned = commBase * config.instRate;
+
+    if (commEarned === 0 && instEarned === 0) continue;
+
+    if (filter) {
+      const f = filter.toLowerCase();
+      if (!r.soId.toLowerCase().includes(f) &&
+          !r.customer.toLowerCase().includes(f) &&
+          !r.address.toLowerCase().includes(f)) continue;
+    }
+
+    rows.push({ ...r, commBase, commEarned, instEarned });
+  }
+  return rows;
+}
+
+function renderMissingSoWarning(list) {
+  // Show/hide a warning banner on each commission page
+  const msg = list.length === 0 ? '' :
+    `⚠ ${list.length} invoice${list.length>1?'s':''} have no Sales Order field and are excluded: ${list.join(', ')}`;
+  ['christa','richard','orders'].forEach(tab => {
+    let el = document.getElementById('warn-' + tab);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'warn-' + tab;
+      el.style.cssText = 'background:#2a1a00;border:1px solid #ca8a0466;color:#fbbf24;font-size:12px;padding:8px 14px;border-radius:6px;margin-bottom:12px;';
+      const page = document.getElementById('page-' + tab);
+      page.insertBefore(el, page.firstChild);
+    }
+    el.textContent = msg;
+    el.style.display = list.length === 0 ? 'none' : 'block';
+  });
+}
+
+function getMilestones(role) {
+  return role === 'sales'
+    ? [{ pct: 0.50, label: '50%' }, { pct: 0.35, label: '35%' }, { pct: 0.15, label: '15%' }]
+    : [{ pct: 1/3,  label: '33%' }, { pct: 1/3,  label: '33%' }, { pct: 1/3,  label: '33%' }];
+}
+
+function getPaymentKey(soId, role) { return `${soId}_${role}`; }
+
+function getMilestoneData(soId, role, earned) {
+  const key = getPaymentKey(soId, role);
+  const pay = payments[key] || {};
+  const ms  = getMilestones(role);
+
+  return ms.map((m, i) => {
+    const n = i + 1;
+    const calcAmt   = earned * m.pct;
+    const overrideAmt = pay[`amt${n}`] ? parseFloat(pay[`amt${n}`]) : null;
+    const amount    = overrideAmt !== null ? overrideAmt : calcAmt;
+    const date      = pay[`date${n}`] || '';
+    const paid      = !!date;
+    return { pct: m.label, amount, date, paid, calcAmt, override: overrideAmt !== null };
+  });
+}
+
+function getTotalPaid(soId, role, earned) {
+  return getMilestoneData(soId, role, earned)
+    .filter(m => m.paid)
+    .reduce((s, m) => s + m.amount, 0);
+}
+
+// ═══════════════════════════════════════════════════
+// RENDER ALL
+// ═══════════════════════════════════════════════════
+function renderAll() {
+  renderChrista();
+  renderRichard();
+  renderOrders();
+  renderProductTable();
+  applyConfig();
+}
+
+// ═══════════════════════════════════════════════════
+// CHRISTA PAGE
+// ═══════════════════════════════════════════════════
+function renderChrista(filter) {
+  if (!filter) filter = document.getElementById('christaSearch')?.value || '';
+  const rows = getCommissionRows('sales', filter);
+  renderStatsRow('christa-stats', rows, 'christa', 'sales');
+
+  const cols = [
+    { key:'soId',      label:'Sales Order' },
+    { key:'customer',  label:'Customer' },
+    { key:'address',   label:'Project Address' },
+    { key:'date',      label:'Invoice Date' },
+    { key:'commEarned',label:'Earned', numeric:true },
+    { key:'paid',      label:'Paid',   numeric:true },
+    { key:'remaining', label:'Remaining', numeric:true },
+    { key:'milestones',label:'Milestones' },
+    { key:'installType',label:'Type' },
+    { key:'actions',   label:'' }
+  ];
+
+  document.getElementById('christa-table').innerHTML =
+    rows.length === 0
+      ? emptyState(invoices.length === 0 ? 'No QBO data loaded' : 'No results', invoices.length === 0 ? 'Connect to QuickBooks and refresh data to get started.' : 'Try a different search term.')
+      : buildTable(cols, rows, 'christa', r => christaRow(r), 'christa');
+}
+
+function christaRow(r) {
+  const ms = getMilestoneData(r.soId, 'sales', r.commEarned);
+  const paid = ms.filter(m=>m.paid).reduce((s,m)=>s+m.amount,0);
+  const remaining = r.commEarned - paid;
+  const status = paid === 0 ? 'unpaid' : remaining <= 0.01 ? 'paid' : 'partial';
+  return `
+    <td class="mono">${r.soId}</td>
+    <td>${esc(r.customer)}</td>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(r.address)}</td>
+    <td class="mono">${r.date}</td>
+    <td class="mono" style="text-align:right;">${fmt(r.commEarned)}</td>
+    <td class="mono" style="text-align:right;color:var(--green);">${fmt(paid)}</td>
+    <td class="mono" style="text-align:right;color:${remaining>0?'var(--yellow)':'var(--muted)'};">${fmt(remaining)}</td>
+    <td>${renderMilestones(ms)}</td>
+    <td><span class="pill ${r.supplyOnly?'supplyonly':'install'}">${r.installType}</span></td>
+    <td><button class="btn sm" onclick="openPayModal('${r.soId}','sales',${r.commEarned})">Edit</button></td>
+  `;
+}
+
+// ═══════════════════════════════════════════════════
+// RICHARD PAGE
+// ═══════════════════════════════════════════════════
+function renderRichard(filter) {
+  if (!filter) filter = document.getElementById('richardSearch')?.value || '';
+  const rows = getCommissionRows('install', filter);
+  renderStatsRow('richard-stats', rows, 'richard', 'install');
+
+  const cols = [
+    { key:'soId',      label:'Sales Order' },
+    { key:'customer',  label:'Customer' },
+    { key:'address',   label:'Project Address' },
+    { key:'date',      label:'Invoice Date' },
+    { key:'instEarned',label:'Earned', numeric:true },
+    { key:'paid',      label:'Paid',   numeric:true },
+    { key:'remaining', label:'Remaining', numeric:true },
+    { key:'milestones',label:'Milestones' },
+    { key:'installType',label:'Type' },
+    { key:'actions',   label:'' }
+  ];
+
+  document.getElementById('richard-table').innerHTML =
+    rows.length === 0
+      ? emptyState(invoices.length === 0 ? 'No QBO data loaded' : 'No results', invoices.length === 0 ? 'Connect to QuickBooks and refresh data to get started.' : 'Try a different search term.')
+      : buildTable(cols, rows, 'richard', r => richardRow(r), 'richard');
+}
+
+function richardRow(r) {
+  const ms = getMilestoneData(r.soId, 'install', r.instEarned);
+  const paid = ms.filter(m=>m.paid).reduce((s,m)=>s+m.amount,0);
+  const remaining = r.instEarned - paid;
+  return `
+    <td class="mono">${r.soId}</td>
+    <td>${esc(r.customer)}</td>
+    <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(r.address)}</td>
+    <td class="mono">${r.date}</td>
+    <td class="mono" style="text-align:right;">${fmt(r.instEarned)}</td>
+    <td class="mono" style="text-align:right;color:var(--green);">${fmt(paid)}</td>
+    <td class="mono" style="text-align:right;color:${remaining>0?'var(--yellow)':'var(--muted)'};">${fmt(remaining)}</td>
+    <td>${renderMilestones(ms)}</td>
+    <td><span class="pill ${r.supplyOnly?'supplyonly':'install'}">${r.installType}</span></td>
+    <td><button class="btn sm" onclick="openPayModal('${r.soId}','install',${r.instEarned})">Edit</button></td>
+  `;
+}
+
+// ═══════════════════════════════════════════════════
+// ORDER DETAIL PAGE
+// ═══════════════════════════════════════════════════
+function renderOrders(filter) {
+  if (!filter) filter = document.getElementById('ordersSearch')?.value || '';
+  const rows = getCommissionRows('sales', filter);
+
+  const cols = [
+    { key:'soId',       label:'Sales Order' },
+    { key:'customer',   label:'Customer' },
+    { key:'date',       label:'Invoice Date' },
+    { key:'installType',label:'Type' },
+    { key:'goodsTotal', label:'Goods Total', numeric:true },
+    { key:'installTotal',label:'Install Cost', numeric:true },
+    { key:'commBase',   label:'Comm. Base',  numeric:true },
+    { key:'commEarned', label:'Sales Comm.', numeric:true },
+    { key:'instEarned', label:'Install Comm.',numeric:true },
+    { key:'balance',    label:'Balance',     numeric:true }
+  ];
+
+  document.getElementById('orders-table').innerHTML =
+    rows.length === 0
+      ? emptyState(invoices.length === 0 ? 'No QBO data loaded' : 'No results', invoices.length === 0 ? 'Connect to QuickBooks and refresh data.' : '')
+      : buildTable(cols, rows, 'orders', r => orderRow(r), 'orders');
+}
+
+function orderRow(r) {
+  return `
+    <td class="mono">${r.soId}</td>
+    <td>${esc(r.customer)}</td>
+    <td class="mono">${r.date}</td>
+    <td><span class="pill ${r.supplyOnly?'supplyonly':'install'}">${r.installType}</span></td>
+    <td class="mono" style="text-align:right;">${fmt(r.goodsTotal)}</td>
+    <td class="mono" style="text-align:right;color:var(--muted);">${fmt(r.installTotal)}</td>
+    <td class="mono" style="text-align:right;">${fmt(r.commBase)}</td>
+    <td class="mono" style="text-align:right;color:var(--christa);">${fmt(r.commEarned)}</td>
+    <td class="mono" style="text-align:right;color:var(--richard);">${fmt(r.instEarned)}</td>
+    <td class="mono" style="text-align:right;color:${r.balance>0?'var(--yellow)':'var(--muted)'};">${fmt(r.balance)}</td>
+  `;
+}
+
+// ═══════════════════════════════════════════════════
+// SHARED ROW BUILDER
+// ═══════════════════════════════════════════════════
+
+
+// ═══════════════════════════════════════════════════
+// STATS ROW
+// ═══════════════════════════════════════════════════
+function renderStatsRow(elId, rows, colorClass, role) {
+  let totalEarned=0, totalPaid=0;
+  for (const r of rows) {
+    const earned = role === 'sales' ? r.commEarned : r.instEarned;
+    totalEarned += earned;
+    totalPaid   += getTotalPaid(r.soId, role, earned);
+  }
+  const totalRemaining = totalEarned - totalPaid;
+  const paidOrders = rows.filter(r => {
+    const earned = role==='sales' ? r.commEarned : r.instEarned;
+    return getTotalPaid(r.soId, role, earned) >= earned - 0.01;
+  }).length;
+
+  document.getElementById(elId).innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Total Earned</div>
+      <div class="stat-value ${colorClass}">${fmt(totalEarned)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Paid</div>
+      <div class="stat-value green">${fmt(totalPaid)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Outstanding</div>
+      <div class="stat-value yellow">${fmt(totalRemaining)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Orders</div>
+      <div class="stat-value muted">${rows.length}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Fully Paid</div>
+      <div class="stat-value green">${paidOrders}</div>
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════
+// TABLE BUILDER
+// ═══════════════════════════════════════════════════
+function buildTable(cols, rows, id, rowFn, colorClass) {
+  const ss = sortState[id] || { col: null, dir: 1 };
+  let sorted = [...rows];
+  if (ss.col) {
+    sorted.sort((a,b) => {
+      let av = a[ss.col], bv = b[ss.col];
+      if (typeof av === 'string') av = av.toLowerCase();
+      if (typeof bv === 'string') bv = bv.toLowerCase();
+      return av < bv ? -ss.dir : av > bv ? ss.dir : 0;
+    });
+  }
+
+  const ths = cols.map(c => {
+    const isSorted = ss.col === c.key;
+    const arrow = c.key === 'actions' || c.key === 'milestones' ? '' :
+      `<span class="sort-arrow">${isSorted ? (ss.dir===1?'▲':'▼') : '▲'}</span>`;
+    return `<th class="${isSorted?'sorted':''}" onclick="tableSort('${id}','${c.key}')"
+      style="${c.numeric?'text-align:right':''}">${c.label}${arrow}</th>`;
+  }).join('');
+
+  const trs = sorted.map(r => `<tr>${rowFn(r)}</tr>`).join('');
+  return `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+}
+
+function tableSort(id, col) {
+  const ss = sortState[id] || { col: null, dir: 1 };
+  sortState[id] = { col, dir: ss.col === col ? -ss.dir : 1 };
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════════
+// MILESTONES CELL
+// ═══════════════════════════════════════════════════
+function renderMilestones(ms) {
+  return '<div class="milestone-group">' + ms.map(m => {
+    const cls = m.paid ? 'paid-ms' : '';
+    return `<div class="ms ${cls}">
+      <span class="ms-pct">${m.pct}</span>
+      <span class="ms-amt">${fmt(m.amount)}</span>
+      <span class="ms-date">${m.date || '—'}</span>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+// ═══════════════════════════════════════════════════
+// PAYMENT MODAL
+// ═══════════════════════════════════════════════════
+function openPayModal(soId, role, earned) {
+  payModalCtx = { soId, role, earned: parseFloat(earned) };
+  const ms = getMilestones(role);
+  const key = getPaymentKey(soId, role);
+  const pay = payments[key] || {};
+  const label = role === 'sales' ? 'Christa' : 'Richard';
+
+  document.getElementById('payModalTitle').textContent = `${soId} — ${label}`;
+  document.getElementById('payModalSub').textContent =
+    `Earned: ${fmtRaw(earned)} · Edit milestone dates and amounts below.`;
+
+  const msData = getMilestoneData(soId, role, earned);
+
+  document.getElementById('payModalFields').innerHTML = msData.map((m,i) => {
+    const n = i+1;
+    return `
+      <div class="ms-row">
+        <div class="pay-field">
+          <label>Milestone ${n} Date (${m.pct})</label>
+          <input type="date" id="pm-date${n}" value="${m.date}">
+        </div>
+        <div class="pay-field">
+          <label>Amount Override (blank = ${fmtRaw(m.calcAmt)})</label>
+          <input type="number" id="pm-amt${n}" placeholder="${fmtRaw(m.calcAmt)}" value="${pay[`amt${n}`]||''}">
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('payModal').classList.add('open');
+}
+
+function closePayModal() {
+  document.getElementById('payModal').classList.remove('open');
+  payModalCtx = null;
+}
+
+function savePayModal() {
+  if (!payModalCtx) return;
+  const { soId, role } = payModalCtx;
+  const key = getPaymentKey(soId, role);
+  const entry = {};
+  for (let n=1; n<=3; n++) {
+    const d = document.getElementById(`pm-date${n}`)?.value;
+    const a = document.getElementById(`pm-amt${n}`)?.value;
+    if (d) entry[`date${n}`] = d;
+    if (a) entry[`amt${n}`]  = parseFloat(a);
+  }
+  payments[key] = entry;
+  savePayments();
+  closePayModal();
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════════
+// PRODUCT TABLE (SETTINGS)
+// ═══════════════════════════════════════════════════
+function renderProductTable(filter) {
+  if (filter === undefined) filter = document.getElementById('productSearch')?.value || '';
+  let skus = Object.keys(products).sort();
+  if (filter) skus = skus.filter(s => s.toLowerCase().includes(filter.toLowerCase()));
+
+  if (skus.length === 0) {
+    document.getElementById('product-table').innerHTML = emptyState(
+      'No products yet',
+      'Add products with their install costs. SKU must match the QBO item code (e.g. WMBH).'
+    );
+    return;
+  }
+
+  const rows = skus.map(sku => `
+    <tr>
+      <td><input class="edit-input" value="${esc(sku)}" onblur="renameProduct('${esc(sku)}',this.value)" style="width:120px;"></td>
+      <td><input class="edit-input" type="number" step="0.01" value="${products[sku]||0}"
+        onchange="products['${esc(sku)}']=parseFloat(this.value)||0;saveProducts();renderAll();" style="width:110px;"></td>
+      <td><button class="btn sm" onclick="deleteProduct('${esc(sku)}')">Remove</button></td>
+    </tr>
+  `).join('');
+
+  document.getElementById('product-table').innerHTML = `
+    <table>
+      <thead><tr>
+        <th onclick="void(0)">SKU</th>
+        <th onclick="void(0)">Install Cost ($)</th>
+        <th></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function addProductRow() {
+  const sku = prompt('Enter SKU (e.g. WMBH):');
+  if (!sku) return;
+  const cost = parseFloat(prompt(`Install cost for ${sku.trim()}:`) || '0');
+  products[sku.trim().toUpperCase()] = isNaN(cost) ? 0 : cost;
+  saveProducts();
+  renderProductTable();
+  renderAll();
+}
+
+function renameProduct(oldSku, newSku) {
+  newSku = newSku.trim().toUpperCase();
+  if (!newSku || newSku === oldSku) return;
+  products[newSku] = products[oldSku];
+  delete products[oldSku];
+  saveProducts();
+  renderProductTable();
+  renderAll();
+}
+
+function deleteProduct(sku) {
+  if (!confirm(`Remove ${sku}?`)) return;
+  delete products[sku];
+  saveProducts();
+  renderProductTable();
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════════
+// EXPORT / IMPORT
+// ═══════════════════════════════════════════════════
+function exportAllData() {
+  const bundle = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    config, products, payments
+  };
+  const blob = new Blob([JSON.stringify(bundle, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `sbs_commission_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+
+function importAllData(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const bundle = JSON.parse(e.target.result);
+      if (bundle.config)   { config   = bundle.config;   localStorage.setItem('sbs_config',   JSON.stringify(config)); }
+      if (bundle.products) { products = bundle.products; localStorage.setItem('sbs_products', JSON.stringify(products)); }
+      if (bundle.payments) { payments = bundle.payments; localStorage.setItem('sbs_payments', JSON.stringify(payments)); }
+      applyConfig();
+      renderAll();
+      alert('Import successful.');
+    } catch(err) {
+      alert('Import failed — invalid backup file.');
+    }
+  };
+  reader.readAsText(file);
+  evt.target.value = '';
+}
+
+// ═══════════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════════
+function showTab(name) {
+  ['christa','richard','orders','settings'].forEach(t => {
+    document.getElementById('page-'+t).classList.remove('active');
+    const tab = document.getElementById('tab-'+t);
+    tab.className = 'tab';
+  });
+  document.getElementById('page-'+name).classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active-'+name);
+}
+
+function openAuthModal()  { document.getElementById('authModal').classList.add('open'); }
+function closeAuthModal() { document.getElementById('authModal').classList.remove('open'); }
+
+function setConnStatus(state, label) {
+  const dot = document.getElementById('connDot');
+  const lbl = document.getElementById('connLabel');
+  dot.className = 'conn-dot' + (state==='connected' ? ' connected' : state==='error' ? ' error' : '');
+  lbl.textContent = label;
+}
+
+function fmt(n)    { return '$' + (n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+function fmtRaw(n) { return (n||0).toFixed(2); }
+function esc(s)    { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function emptyState(title, msg) {
+  return `<div class="empty"><strong>${title}</strong>${msg}</div>`;
+}
+
+</script>
+</body>
+</html>
