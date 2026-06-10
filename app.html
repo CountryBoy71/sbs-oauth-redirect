@@ -482,8 +482,9 @@ window.onload = function() {
   loadLocalData();
   showTab('christa');
 
-  // Load token from token.json (written by auth.py)
+  // Check for returning OAuth code, then fall through to stored token check
   checkForPendingAuth();
+  checkStoredToken();
 };
 
 function loadLocalData() {
