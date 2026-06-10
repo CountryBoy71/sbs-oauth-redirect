@@ -1,0 +1,9 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/*"
+  to = "/app.html"
+  status = 200
+  conditions = {Role = ["admin"]}
