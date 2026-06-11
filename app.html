@@ -381,6 +381,45 @@
   </div>
 </div>
 
+<!-- MANUAL ORDER MODAL -->
+<div class="modal-overlay" id="manualOrderModal">
+  <div class="pay-modal" style="max-width:680px;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <h2 id="manOrderTitle" style="font-size:16px;">Add Manual Order</h2>
+      <button class="btn sm" onclick="closeManualOrderModal()">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <div class="pay-field">
+        <label>Sales Order #</label>
+        <input type="text" id="man-soId" placeholder="e.g. S00103" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;color:var(--text);padding:7px 10px;font-size:13px;">
+      </div>
+      <div class="pay-field">
+        <label>Install Type</label>
+        <select id="man-installType" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;color:var(--text);padding:7px 10px;font-size:13px;">
+          <option value="Install">Install</option>
+          <option value="Supply Only">Supply Only</option>
+        </select>
+      </div>
+      <div class="pay-field">
+        <label>Customer</label>
+        <input type="text" id="man-customer" placeholder="Customer name" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;color:var(--text);padding:7px 10px;font-size:13px;">
+      </div>
+      <div class="pay-field">
+        <label>Project Address</label>
+        <input type="text" id="man-address" placeholder="Project address" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;color:var(--text);padding:7px 10px;font-size:13px;">
+      </div>
+    </div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Order Lines</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">Install costs applied automatically from the product table.</p>
+    <div id="manOrderLinesTable"></div>
+    <button class="btn sm" onclick="addManOrderLine()" style="margin-top:10px;">+ Add Line</button>
+    <div class="pay-actions" style="margin-top:20px;">
+      <button class="btn" onclick="closeManualOrderModal()">Cancel</button>
+      <button class="btn primary" onclick="saveManualOrder()">Save Order</button>
+    </div>
+  </div>
+</div>
+
 <!-- HEADER -->
 <header>
   <div class="header-left">
@@ -425,6 +464,7 @@
     </select>
     <div class="toolbar-spacer"></div>
     <button class="btn sm" onclick="clearFilters('christa')">Clear Filters</button>
+    <button class="btn sm" onclick="openManualOrderModal()">+ Manual Order</button>
     <button class="btn sm" onclick="toggleShowHidden('christa')" id="showHiddenBtnChrista">Show Hidden</button>
   </div>
   <div class="table-wrap">
@@ -453,6 +493,7 @@
     </select>
     <div class="toolbar-spacer"></div>
     <button class="btn sm" onclick="clearFilters('richard')">Clear Filters</button>
+    <button class="btn sm" onclick="openManualOrderModal()">+ Manual Order</button>
     <button class="btn sm" onclick="toggleShowHidden('richard')" id="showHiddenBtnRichard">Show Hidden</button>
   </div>
   <div class="table-wrap">
@@ -538,6 +579,7 @@ let hiddenOrders = {};   // soId → true
 let orderOverrides = {}; // soId → { lines: [{sku, qty, unitPrice}], supplyOnly: bool }
 let showHidden    = false;
 let tableFilters  = { christa: {}, richard: {}, orders: {} };
+let manualOrders  = {};  // soId → { customer, address, installType, supplyOnly, lines: [{sku,qty,unitPrice}] }
 
 // ═══════════════════════════════════════════════════
 // INIT
@@ -577,6 +619,8 @@ function loadLocalData() {
     if (ho) hiddenOrders = JSON.parse(ho);
     const oo = localStorage.getItem('sbs_overrides');
     if (oo) orderOverrides = JSON.parse(oo);
+    const mo = localStorage.getItem('sbs_manual');
+    if (mo) manualOrders = JSON.parse(mo);
   } catch(e) { console.warn('loadLocalData error', e); }
   applyConfig();
   renderAll();
@@ -605,6 +649,9 @@ function saveHidden() {
 }
 function saveOverrides() {
   localStorage.setItem('sbs_overrides', JSON.stringify(orderOverrides));
+}
+function saveManualOrders() {
+  localStorage.setItem('sbs_manual', JSON.stringify(manualOrders));
 }
 
 // ═══════════════════════════════════════════════════
@@ -946,6 +993,38 @@ function getCommissionRows(role, filter) {
     if (d.supplyOnly) { row.supplyOnly = true; row.installType = 'Supply Only'; }
   }
 
+  // Inject manual orders into soMap
+  for (const [soId, mo] of Object.entries(manualOrders)) {
+    if (!soMap[soId]) {
+      soMap[soId] = {
+        soId,
+        customer:     mo.customer  || '',
+        address:      mo.address   || '',
+        date:         mo.date      || '',
+        installType:  mo.supplyOnly ? 'Supply Only' : (mo.installType || 'Install'),
+        supplyOnly:   !!mo.supplyOnly,
+        goodsTotal:   0,
+        installTotal: 0,
+        commBase:     0,
+        commEarned:   0,
+        instEarned:   0,
+        balance:      0,
+        lines:        [],
+        isManual:     true
+      };
+    }
+    // Always recalculate from manual lines
+    if (mo.lines && mo.lines.length > 0) {
+      const calc = computeLinesCommission(mo.lines, !!mo.supplyOnly);
+      soMap[soId].goodsTotal   = calc.goodsTotal;
+      soMap[soId].installTotal = calc.installTotal;
+      soMap[soId].commBase     = calc.commBase;
+      soMap[soId].commEarned   = calc.commEarned;
+      soMap[soId].instEarned   = calc.instEarned;
+      soMap[soId].lines        = mo.lines;
+    }
+  }
+
   // Render missing-SO warning
   renderMissingSoWarning(missingSO);
 
@@ -1125,9 +1204,10 @@ function commissionRow(r, role) {
   const statusLabel  = actualPaid === 0 ? 'Unpaid' : remaining <= 0.01 ? 'Paid' : 'Partial';
   const varColor     = Math.abs(variance) < 0.01 ? 'var(--muted)' : variance < 0 ? 'var(--red)' : 'var(--green)';
   const ovBadge      = r.hasOverride ? '<span title="Manual override" style="font-size:9px;background:#1e3a5f;color:#60a5fa;border:1px solid #1d4ed844;border-radius:3px;padding:1px 4px;margin-left:4px;">OVR</span>' : '';
+  const manBadge     = r.isManual    ? '<span title="Manual order" style="font-size:9px;background:#1a2e1a;color:#4ade80;border:1px solid #16a34a44;border-radius:3px;padding:1px 4px;margin-left:4px;">MAN</span>' : '';
 
   return `
-    <td class="mono" style="white-space:nowrap;">${r.soId}${ovBadge}</td>
+    <td class="mono" style="white-space:nowrap;">${r.soId}${ovBadge}${manBadge}</td>
     <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(r.customer)}">${esc(r.customer)}</td>
     <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(r.address)}">${esc(r.address)}</td>
     <td><span class="pill ${r.supplyOnly?'supplyonly':'install'}">${r.installType}</span></td>
@@ -1141,8 +1221,8 @@ function commissionRow(r, role) {
     <td class="mono" style="text-align:right;color:${varColor};">${variance >= 0 ? '+' : ''}${fmt(variance)}</td>
     <td>${renderMilestones(ms)}</td>
     <td style="white-space:nowrap;">
-      <button class="btn sm" onclick="openEditModal('${r.soId}','${role}')">Edit</button>
-      <button class="btn sm" onclick="toggleHide('${r.soId}')" style="margin-left:4px;">${r.hidden?'Show':'Hide'}</button>
+      <button class="btn sm" onclick="openEditModal('${r.soId}','${role}')">${r.isManual ? 'Edit' : 'Edit'}</button>
+      ${r.isManual ? `<button class="btn sm" onclick="deleteManualOrder('${r.soId}')" style="margin-left:4px;color:var(--red);">Delete</button>` : `<button class="btn sm" onclick="toggleHide('${r.soId}')" style="margin-left:4px;">${r.hidden?'Show':'Hide'}</button>`}
     </td>
   `;
 }
@@ -1378,9 +1458,15 @@ function openEditModal(soId, role) {
       </div>`;
   }).join('');
 
+  // For manual orders, redirect lines tab to the manual order modal instead
+  const isManual = !!manualOrders[soId];
+
   // Populate lines tab — use override if exists, otherwise from invoice data
   const ov = orderOverrides[soId];
-  if (ov && ov.lines && ov.lines.length > 0) {
+  if (isManual) {
+    editModalLines = (manualOrders[soId].lines || []).map(l => ({...l}));
+    document.getElementById('ovr-source-note').textContent = ' Manual order — editing lines here will update the manual order.';
+  } else if (ov && ov.lines && ov.lines.length > 0) {
     editModalLines = ov.lines.map(l => ({...l}));
     document.getElementById('ovr-source-note').textContent = ' Using manual override.';
   } else if (row && row.lines && row.lines.length > 0) {
@@ -1495,13 +1581,19 @@ function saveEditModal() {
   payments[key] = entry;
   savePayments();
 
-  // Save line overrides if any lines exist
+  // Save line overrides — update manual order if that's what this is, otherwise save override
   const soEl       = document.getElementById('ovr-supply-only');
   const supplyOnly = soEl ? soEl.checked : false;
   const validLines = editModalLines.filter(l => l.sku && l.qty > 0);
   if (validLines.length > 0) {
-    orderOverrides[soId] = { lines: validLines, supplyOnly };
-    saveOverrides();
+    if (manualOrders[soId]) {
+      manualOrders[soId].lines      = validLines;
+      manualOrders[soId].supplyOnly = supplyOnly;
+      saveManualOrders();
+    } else {
+      orderOverrides[soId] = { lines: validLines, supplyOnly };
+      saveOverrides();
+    }
   }
 
   closeEditModal();
@@ -1565,6 +1657,111 @@ function renameProduct(oldSku, newSku) {
   renderAll();
 }
 
+// ═══════════════════════════════════════════════════
+// MANUAL ORDER MODAL
+// ═══════════════════════════════════════════════════
+let manOrderLines = [];
+let manOrderEditId = null; // if editing existing manual order
+
+function openManualOrderModal(editSoId) {
+  manOrderEditId = editSoId || null;
+  manOrderLines  = [];
+
+  if (editSoId && manualOrders[editSoId]) {
+    const mo = manualOrders[editSoId];
+    document.getElementById('man-soId').value       = editSoId;
+    document.getElementById('man-soId').disabled    = true;
+    document.getElementById('man-customer').value   = mo.customer  || '';
+    document.getElementById('man-address').value    = mo.address   || '';
+    document.getElementById('man-installType').value= mo.supplyOnly ? 'Supply Only' : (mo.installType || 'Install');
+    manOrderLines = (mo.lines || []).map(l => ({...l}));
+    document.getElementById('manOrderTitle').textContent = `Edit Manual Order — ${editSoId}`;
+  } else {
+    document.getElementById('man-soId').value       = '';
+    document.getElementById('man-soId').disabled    = false;
+    document.getElementById('man-customer').value   = '';
+    document.getElementById('man-address').value    = '';
+    document.getElementById('man-installType').value= 'Install';
+    document.getElementById('manOrderTitle').textContent = 'Add Manual Order';
+  }
+
+  renderManOrderLines();
+  document.getElementById('manualOrderModal').classList.add('open');
+}
+
+function closeManualOrderModal() {
+  document.getElementById('manualOrderModal').classList.remove('open');
+  manOrderLines  = [];
+  manOrderEditId = null;
+}
+
+function renderManOrderLines() {
+  const supplyOnly = document.getElementById('man-installType')?.value === 'Supply Only';
+  const rows = manOrderLines.map((l, i) => {
+    const installCost = products[l.sku] ? parseFloat(products[l.sku]) : 0;
+    const deduction   = supplyOnly ? 0 : installCost;
+    const commBase    = (l.qty || 0) * ((l.unitPrice || 0) - deduction);
+    return `<tr>
+      <td><input class="edit-input" value="${esc(l.sku||'')}" onchange="manOrderLines[${i}].sku=this.value.toUpperCase();" style="width:90px;"></td>
+      <td><input class="edit-input" type="number" step="1" min="0" value="${l.qty||1}" onchange="manOrderLines[${i}].qty=parseFloat(this.value)||0;" style="width:60px;"></td>
+      <td><input class="edit-input" type="number" step="0.01" min="0" value="${l.unitPrice||0}" onchange="manOrderLines[${i}].unitPrice=parseFloat(this.value)||0;" style="width:90px;"></td>
+      <td class="mono" style="text-align:right;color:var(--muted);font-size:11px;">${fmt(installCost)}</td>
+      <td class="mono" style="text-align:right;font-size:11px;">${fmt(commBase)}</td>
+      <td><button class="btn sm" onclick="manOrderLines.splice(${i},1);renderManOrderLines();">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('manOrderLinesTable').innerHTML = `
+    <table style="width:100%;">
+      <thead><tr>
+        <th style="text-align:left;font-size:11px;padding:6px 8px;color:var(--muted);">SKU</th>
+        <th style="text-align:left;font-size:11px;padding:6px 8px;color:var(--muted);">Qty</th>
+        <th style="text-align:left;font-size:11px;padding:6px 8px;color:var(--muted);">Unit Price</th>
+        <th style="text-align:right;font-size:11px;padding:6px 8px;color:var(--muted);">Install Cost</th>
+        <th style="text-align:right;font-size:11px;padding:6px 8px;color:var(--muted);">Comm. Base</th>
+        <th></th>
+      </tr></thead>
+      <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:16px;">No lines yet — click + Add Line</td></tr>'}</tbody>
+    </table>`;
+}
+
+function addManOrderLine() {
+  manOrderLines.push({ sku: '', qty: 1, unitPrice: 0 });
+  renderManOrderLines();
+}
+
+function saveManualOrder() {
+  const soId       = (document.getElementById('man-soId').value || '').trim().toUpperCase();
+  const customer   = document.getElementById('man-customer').value.trim();
+  const address    = document.getElementById('man-address').value.trim();
+  const installType= document.getElementById('man-installType').value;
+  const supplyOnly = installType === 'Supply Only';
+
+  if (!soId) { alert('Sales Order # is required.'); return; }
+
+  // Check for conflict with QBO invoice data (unless editing existing)
+  if (!manOrderEditId && invoices.some(inv =>
+    (inv.CustomField||[]).find(f => f.Name==='Sales Order' && f.StringValue===soId)
+  )) {
+    if (!confirm(`${soId} already exists in QBO invoice data. Adding a manual order will override it. Continue?`)) return;
+  }
+
+  const validLines = manOrderLines.filter(l => l.sku && l.qty > 0);
+  if (validLines.length === 0) { alert('Add at least one line.'); return; }
+
+  manualOrders[soId] = { customer, address, installType, supplyOnly, lines: validLines, date: new Date().toISOString().slice(0,10) };
+  saveManualOrders();
+  closeManualOrderModal();
+  renderAll();
+}
+
+function deleteManualOrder(soId) {
+  if (!confirm(`Delete manual order ${soId}? This cannot be undone.`)) return;
+  delete manualOrders[soId];
+  saveManualOrders();
+  renderAll();
+}
+
 function deleteProduct(sku) {
   if (!confirm(`Remove ${sku}?`)) return;
   delete products[sku];
@@ -1617,9 +1814,9 @@ function exportProductCsv() {
 // ═══════════════════════════════════════════════════
 function exportAllData() {
   const bundle = {
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
-    config, products, payments, hiddenOrders, orderOverrides
+    config, products, payments, hiddenOrders, orderOverrides, manualOrders
   };
   const blob = new Blob([JSON.stringify(bundle, null, 2)], { type:'application/json' });
   const a = document.createElement('a');
@@ -1638,8 +1835,9 @@ function importAllData(evt) {
       if (bundle.config)        { config        = bundle.config;        localStorage.setItem('sbs_config',    JSON.stringify(config)); }
       if (bundle.products)      { products      = bundle.products;      localStorage.setItem('sbs_products',  JSON.stringify(products)); }
       if (bundle.payments)      { payments      = bundle.payments;      localStorage.setItem('sbs_payments',  JSON.stringify(payments)); }
-      if (bundle.hiddenOrders)  { hiddenOrders  = bundle.hiddenOrders;  localStorage.setItem('sbs_hidden',    JSON.stringify(hiddenOrders)); }
-      if (bundle.orderOverrides){ orderOverrides= bundle.orderOverrides;localStorage.setItem('sbs_overrides', JSON.stringify(orderOverrides)); }
+      if (bundle.hiddenOrders)  { hiddenOrders   = bundle.hiddenOrders;   localStorage.setItem('sbs_hidden',    JSON.stringify(hiddenOrders)); }
+      if (bundle.orderOverrides){ orderOverrides = bundle.orderOverrides; localStorage.setItem('sbs_overrides', JSON.stringify(orderOverrides)); }
+      if (bundle.manualOrders)  { manualOrders   = bundle.manualOrders;   localStorage.setItem('sbs_manual',    JSON.stringify(manualOrders)); }
       applyConfig();
       renderAll();
       alert('Import successful.');
